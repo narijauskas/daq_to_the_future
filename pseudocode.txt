@@ -1,0 +1,52 @@
+on setup:
+    - enable display
+    - initialize pins
+    - initialize SD
+
+
+on logging button interrupt:
+    - logging_toggle = true
+
+on sensor interrupts:
+    - increase counter
+
+on timer interrupts:
+    - write data to SD buffer
+    - clear counters
+    OR
+    - set timer_trigger = true
+
+on loop:
+    if logging mode starting
+    (if logging_toggle == true && logging == false)
+    - logging = true
+    - logging_toggle = false
+    - iterate new file name
+    - open new file
+    - clear counters
+    - reset time
+    - attach interrupts (as rising edge)
+
+    if logging mode ongoing
+    (logging == true)
+    - run timer
+        if timer_trigger == true
+        - increment time
+        - write data to SD buffer
+        - clear counters
+        - set timer_trigger == false
+
+    if logging mode ending
+    (if logging_toggle == true && logging == true)
+    - flush data
+    - close file
+    - detach interrupts
+    - stop timer (if that's a thing)
+
+SD stuff
+    - make string
+    - convert to char array
+    - use char array
+    - delete char array
+     
+    
