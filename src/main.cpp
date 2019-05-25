@@ -100,19 +100,19 @@ bool timer_trigger = false;
 //===========================================================
 
 //the engine rpm pin
-const int engine_rpm_pin; //TODO: set this to wherever the Mantas special is hooked up
+const int engine_rpm_pin = 0; //TODO: set this to wherever the Mantas special is hooked up
 
 //how many times has the engine sparked in the past timer cycle
 int engine_rpm_counter = 0;
 
 //the gearbox rpm pin
-const int gearbox_rpm_pin; //TODO: set this to wherever the gearbox hall effect sensor is plugged in
+const int gearbox_rpm_pin = 0; //TODO: set this to wherever the gearbox hall effect sensor is plugged in
 
 //how many times has the engine sparked in the past timer cycle
 int gearbox_rpm_counter = 0;
 
 //the button to start/stop data collection
-const int logging_pin; //TODO: look up which pins the A/B/C buttons on the adafruit display are connected to
+const int logging_pin = 0; //TODO: look up which pins the A/B/C buttons on the adafruit display are connected to
 
 
 
@@ -159,7 +159,7 @@ void logging_interrupt(){
 }
 
 // a callback function (not an interrupt... I think) that is called whenever the timer reaches a set interval -> sets the timer trigger to true to keep minimal stuff happening inside (just in case it is an interrupt)
-void timer_callback(){
+void timer_cb(){
     timer_trigger = true;
 }
 
