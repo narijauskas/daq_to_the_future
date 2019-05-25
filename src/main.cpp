@@ -25,6 +25,9 @@ int time_interval = 500;
 //the timer object
 SimpleTimer timer;
 
+//a timer ID
+int timer_id;
+
 
 
 
@@ -82,13 +85,13 @@ U8X8_SSD1306_128X32_UNIVISION_HW_I2C u8x8(U8X8_PIN_NONE);
 //NOTE: some of these might need to be volatile? because they will be the things changing inside of interrupts
 
 //if true, the start/stop logging button was just pressed
-bool logging_toggle = false;
+volatile bool logging_toggle = false;
 
 //if true, actively logging
 bool logging = false;
 
 //if true, the timer callback just ran -> time to write data
-bool timer_trigger = false;
+volatile bool timer_trigger = false;
 
 
 
@@ -100,19 +103,19 @@ bool timer_trigger = false;
 //===========================================================
 
 //the engine rpm pin
-const int engine_rpm_pin = 0; //TODO: set this to wherever the Mantas special is hooked up
+const int engine_rpm_pin = 1; //TODO: set this to wherever the Mantas special is hooked up
 
 //how many times has the engine sparked in the past timer cycle
-int engine_rpm_counter = 0;
+volatile int engine_rpm_counter = 0;
 
 //the gearbox rpm pin
-const int gearbox_rpm_pin = 0; //TODO: set this to wherever the gearbox hall effect sensor is plugged in
+const int gearbox_rpm_pin = 2; //TODO: set this to wherever the gearbox hall effect sensor is plugged in
 
 //how many times has the engine sparked in the past timer cycle
-int gearbox_rpm_counter = 0;
+volatile int gearbox_rpm_counter = 0;
 
 //the button to start/stop data collection
-const int logging_pin = 0; //TODO: look up which pins the A/B/C buttons on the adafruit display are connected to
+const int logging_pin = 3; //TODO: look up which pins the A/B/C buttons on the adafruit display are connected to
 
 
 
@@ -188,7 +191,8 @@ void setup() {
     //TODO: make sure these pins are appropriately set to INPUT or INPUT_PULLUP
     //start the pins
 
-    //TODO: attach logging interrupt
+    //attach logging interrupt
+    attachInterrupt(digitalPinToInterrupt(logging_pin), logging_interrupt, RISING);
 
 
     u8x8.clearDisplay();
@@ -219,8 +223,15 @@ void loop() {
         //reset timestamp
         timestamp = 0;
 
-        //TODO: attach interrupts
+        //attach interrupts
+        attachInterrupt(digitalPinToInterrupt(engine_rpm_pin), engine_interrupt, RISING);
+        attachInterrupt(digitalPinToInterrupt(gearbox_rpm_pin), gearbox_interrupt, RISING);
+        //attachInterrupt(digitalPinToInterrupt(pin), ISR, mode)
+        //mode can be LOW/CHANGE/RISING/FALLING/HIGH
+        //ISR is the interrupt service routine (function called by interrupt)
+        
         //TODO: start timer?
+        timer_id = timer.setInterval(time_interval, timer_cb);
     }
 
     //logging mode
@@ -258,8 +269,12 @@ void loop() {
         active_file.flush();
         active_file.close();
 
-        //TODO: detatch interrupts?
+        //detatch interrupts (deactivate them)
+        detachInterrupt(digitalPinToInterrupt(engine_rpm_pin));
+        detachInterrupt(digitalPinToInterrupt(gearbox_rpm_pin));
+
         //TODO: stop timer?
+        //https://playground.arduino.cc/Code/SimpleTimer/
 
         //display that we stopped logging
         u8x8.clearDisplay();
