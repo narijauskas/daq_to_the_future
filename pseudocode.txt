@@ -42,11 +42,5 @@ on loop:
     - close file
     - detach interrupts
     - stop timer (if that's a thing)
-
-SD stuff
-    - make string
-    - convert to char array
-    - use char array
-    - delete char array
      
     
