@@ -9,6 +9,11 @@
 //uncomment if running with serial output "debugging"
 //#define SERIAL_DEBUGGING 1
 
+//OK, I think these are the button mappings:
+//A: 4
+//B: 3
+//C: 8
+
 
 
 //===========================================================
@@ -59,7 +64,7 @@ const char *cstr_file_name = file_name.c_str();
 //@Wyatt - remember the stuf I was talking about strings and making and deleting  pointers to char arrays? forget all of that. Modify the string file_name, and then use cstr_file_name for printing ie. for the display and for the SD card. It magically knows the "contents" of the string.
 
 //a line of data formatted ("engine_rpm_counter,gearbox_rpm_counter,timestamp") for writing to the SD
-String data_line;
+String data_line = "0,0,0";
 
 //a pointer to the contents of the data string
 const char *cstr_data_line = data_line.c_str();
@@ -103,19 +108,22 @@ volatile bool timer_trigger = false;
 //===========================================================
 
 //the engine rpm pin
-const int engine_rpm_pin = 1; //TODO: set this to wherever the Mantas special is hooked up
+const int engine_rpm_pin = 8; //TODO: set this to wherever the Mantas special is hooked up, right now it's set to button C
 
 //how many times has the engine sparked in the past timer cycle
 volatile int engine_rpm_counter = 0;
 
 //the gearbox rpm pin
-const int gearbox_rpm_pin = 2; //TODO: set this to wherever the gearbox hall effect sensor is plugged in
+const int gearbox_rpm_pin = 3; //TODO: set this to wherever the gearbox hall effect sensor is plugged in, right now it's set to button B
 
 //how many times has the engine sparked in the past timer cycle
 volatile int gearbox_rpm_counter = 0;
 
-//the button to start/stop data collection
-const int logging_pin = 3; //TODO: look up which pins the A/B/C buttons on the adafruit display are connected to
+//the button to start/stop data collection (button A)
+const int logging_pin = 4;
+
+//led pin (for debugging purposes)
+const int led_pin = 13;
 
 
 
@@ -142,9 +150,6 @@ const int logging_pin = 3; //TODO: look up which pins the A/B/C buttons on the a
 //function declarations to keep the compiler happy
 //also interrupt functions
 //===========================================================
-
-// a function that searches the SD card for which files exist, increments file number, creates the new file, and opens it for writing
-void make_file();
 
 // a hardware interrupt that runs whenever the engine rpm pin is high, increments the engine rpm counter
 void engine_interrupt(){
@@ -183,22 +188,34 @@ void setup() {
 
 
     //start the SD
-    if (!SD.begin(chip_select)) {
-        u8x8.draw2x2String(0,0,"err: No SD");
-        while(1);//loop forever
+    while (!SD.begin(chip_select)) {
+        u8x8.draw1x2String(0,0,"error:");
+        u8x8.draw1x2String(0,2,"no SD");
+        delay(100);
     }
 
-    //TODO: make sure these pins are appropriately set to INPUT or INPUT_PULLUP
+    
     //start the pins
+    pinMode(logging_pin, INPUT_PULLUP);
+
+    //TODO: will probably have to change these to INPUT
+    pinMode(gearbox_rpm_pin, INPUT_PULLUP);
+    pinMode(engine_rpm_pin, INPUT_PULLUP);
+
+    //pinMode(led_pin, OUTPUT);
 
     //attach logging interrupt
     attachInterrupt(digitalPinToInterrupt(logging_pin), logging_interrupt, RISING);
+    //NOTE: the other interrupts are attached when logging starts
 
+    //set up the timer object
+    timer_id = timer.setInterval(time_interval, timer_cb);
+    timer.disable(timer_id);
 
     u8x8.clearDisplay();
     //u8x8.draw1x2String(0,0,cstr_file_name);
-    u8x8.draw2x2String(0,0,"CWRU");
-    u8x8.draw2x2String(0,2,"Motorsports");
+    u8x8.draw1x2String(0,0,"CWRU");
+    u8x8.draw1x2String(0,2,"Motorsports");
 }
 
 void loop() {
@@ -209,12 +226,29 @@ void loop() {
         logging = true;
 
         //iterate file names and open new file
-        make_file();
+        while (SD.exists(cstr_file_name)){
+            file_number++;
+            file_name = "data_" + String(file_number) + ".txt";
+            //char *cstr_file_name = file_name.c_str();
+            u8x8.draw1x2String(0,0,cstr_file_name);
+        }
+
+        u8x8.clearDisplay();
+
+        active_file = SD.open(cstr_file_name, FILE_WRITE);
+        //active_file = SD.open("test.txt", FILE_WRITE);
+
+        while (!active_file){
+            u8x8.draw1x2String(0,0,"error:");
+            u8x8.draw1x2String(0,2,"crashed");
+            delay(100);
+            active_file = SD.open(cstr_file_name, FILE_WRITE);
+        }
 
         //display that we're logging
         u8x8.clearDisplay();
-        u8x8.draw2x2String(0,0,"Logging:");
-        u8x8.draw2x2String(0,0,cstr_file_name);
+        u8x8.draw1x2String(0,0,"Logging:");
+        u8x8.draw1x2String(0,2,cstr_file_name);
 
         //clear counters
         engine_rpm_counter = 0;
@@ -230,8 +264,9 @@ void loop() {
         //mode can be LOW/CHANGE/RISING/FALLING/HIGH
         //ISR is the interrupt service routine (function called by interrupt)
         
-        //TODO: start timer?
-        timer_id = timer.setInterval(time_interval, timer_cb);
+        //start and reset the timer
+        timer.enable(timer_id);
+        timer.restartTimer(timer_id);
     }
 
     //logging mode
@@ -264,6 +299,9 @@ void loop() {
 
     //stop logging mode (if the logging button has been pressed and we are currently logging)
     if (logging_toggle && logging){
+        //stop logging, end toggle
+        logging_toggle = false;
+        logging = false;
         
         //force a final data flush and close the file
         active_file.flush();
@@ -273,29 +311,15 @@ void loop() {
         detachInterrupt(digitalPinToInterrupt(engine_rpm_pin));
         detachInterrupt(digitalPinToInterrupt(gearbox_rpm_pin));
 
-        //TODO: stop timer?
+        
+        timer.disable(timer_id);
         //https://playground.arduino.cc/Code/SimpleTimer/
 
         //display that we stopped logging
         u8x8.clearDisplay();
-        u8x8.draw2x2String(0,0,"FAPPY NOB");
-        u8x8.draw2x2String(0,2,"GET WRECKD");
+        u8x8.draw1x2String(0,0,"FAPPY NOB");
+        u8x8.draw1x2String(0,2,"GET WRECKD");
     }
     //otherwise, do nothing
 }
-
-void make_file(){
-    
-    while (SD.exists(cstr_file_name)){
-        file_number++;
-        file_name = "data_" + String(file_number) + ".txt";
-        //char *cstr_file_name = file_name.c_str();
-        u8x8.draw1x2String(0,0,cstr_file_name);
-    }
-
-    active_file = SD.open(cstr_file_name, FILE_WRITE);
-    // active_file.println("test");
-    // active_file.close();
-}
-
 
