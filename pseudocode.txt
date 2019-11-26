@@ -24,7 +24,7 @@ on loop:
     - iterate new file name
     - open new file
     - clear counters
-    - reset time
+    - reset time (resets time)
     - attach interrupts (as rising edge)
 
     if logging mode ongoing
