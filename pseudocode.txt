@@ -1,7 +1,7 @@
 on setup:
     - enable display
     - initialize pins
-    - initialize SD
+    - initialize SD (feather logger)
 
 
 on logging button interrupt:
